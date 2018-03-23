@@ -1,0 +1,1190 @@
+---
+title: "Supporting Information for Finnegan, Droser and Gehling: 'Unusually variable paleocommunity structure in the oldest metazoan fossil assemblages'"
+output: pdf_document
+fontsize: 12pt
+geometry: margin=1in
+toc: true
+toc_depth: 2
+number_sections: true
+---
+
+```{r setup, include=FALSE}
+# set eval = FALSE to compile pdf without rerunning analyses
+knitr::opts_chunk$set(echo = TRUE,eval=TRUE,results="hide",strip.white =TRUE, message=FALSE,warning=FALSE,error=TRUE,cache=TRUE,tidy.opts=list(width.cutoff=40),tidy=TRUE)
+```
+#Data Sources
+###Ediacaran data
+
+Ediacaran datasets were compiled from our field notes (for Nilpena) and from Clapham et al., 2003 (for Mistaken Point)(Appendix S1). Because all fossils used for this study are preserved as molds or casts on the base of beds, the beds are inverted during excavation to expose their bases before they are reassembled. The wave-base sands include thin-bedded, rippled medium-grained sandstones representing deposition in shallow marine settings between fairweather and storm wavebase. Beds are laterally discontinuous and range from mm to about 10 cm in thickness. The rich fossil assemblages of this facies represent benthic communities typically smothered by sand deposited by waning storm-surges. This facies is distributed throughout the spatial extent of the Rawnsley and is the most common type of fossil preservation within the Ediacara Member.  The sheet-flow sands facies includes laterally continuous event beds characterized by planar lamination and tool marks.   
+
+Because it is not always possible to identify the taxa of individual fronds because they are commonly shredded and identifying criteria not well preserved, all fronds are grouped together.  Several new taxa have been identified but not described.  These are given nicknames based on morphology and include “Big Strap” and Bundle of Filaments (BOF).  There are three forms of BOF and all are comparable with fossil macroalgae from the Ediacaran of South China.  The three forms are grouped together for this study as they have not been differentiated taxonomically yet.  
+
+Mistaken Point data come from Clapham et al., 2003.  A total of seven fossiliferous surfaces were censused for this study but in order to reduce the likelihood of significant temporal and environmental turnover only the four surfaces from the Mistaken Point Formation (beds LMP,G,E,D) are included.  These samples include a total of 15 distinct taxa.  As with the Nilpena dataset some of these taxa may in fact contain substantial diversity, but treating them as singe genera is conservative in that it will tend to reduce bed-to-bed faunal variability in Ediacaran versus younger datasets.  
+
+###Phanerozoic data
+
+Phanerozoic fossil datasets were downloaded from the Paleobiology Database (PBDB: https://paleobiodb.org) on 05/19/2016 using the following query:  
+
+https://paleobiodb.org/data1.2/occs/list.csv?datainfo&rowcount&taxon_reso=genus&pres=regular&interval=Cambrian,Holocene&time_rule=contain&lithology=siliciclastic,mixed,carbonate&envtype=marine,carbonate,silicic,^lacust,^fluvial,^karst,^terrother,^reef&abundance=count:1&show=full,classext,acconly,img,etbasis,strat,lith,env,resgroup,ref,ent,entname,crmod.  
+
+The PBDB datasets that are sufficiently densely sampled for our analyses are largely but not exclusively from North America and Europe (Figure S1; Appendix S2). We also included one dataset from the Maotianshan Shale (Zhao et al., 2014) that is not yet entered into the Paleobiology Database (Appendix S3). Only datasets that were collected for paleoecological purposes and in which all or most taxa were quantitaively censused were included.  Vertebrates, planktonic groups, and microfossils were excluded as they are inconsistently reported and/or not part of the benthic paleocommunity.  
+
+###Modern data
+
+Modern datasets were downloaded via the Ocean Biogeographic Information System (OBIS: http://www.iobis.org) and its regional partner sites. We searched for datasets that included quantitative abundances of all or most benthic macrofauna and megafauna from multiple benthic grab samples in a region. The datasets with sufficiently dense sampling to be included in our analyses were:  
+
+Benthos of the Danish shelf: (ODAM): http://www.iobis.org/explore/#/dataset/3920  
+Benthos of Limfjord, Denmark: http://www.iobis.org/explore/#/dataset/4312  
+Benthos of the Swedish shelf: (SHARK): http://www.iobis.org/explore/#/dataset/3826  
+Benthos of the Cretan Shelf: http://www.iobis.org/explore/#/dataset/3185  
+Benthos of Svalbard: http://www.iobis.org/explore/#/dataset/60, http://www.iobis.org/explore/#/dataset/587   Benthos of the Gironde Estuary, France: http://www.iobis.org/explore/#/dataset/589  
+Benthos of the Irish and Celtic Seas (BioMar): http://www.iobis.org/explore/#/dataset/47  
+Benthos of Kiel Bay, Germany: http://www.iobis.org/explore/#/dataset/70  
+The EPA EMAPS dataset (coastal and esturine USA): http://www.iobis.org/explore/#/dataset/25  
+
+We used associated substrate data to constrain habitat in the EMAPS database (Appendix S4). Substrate data are inconsistently reported in the European datasets, so to constrain substrate type for European samples we intersected sample coordinates with shapefiles from the EMODnet broad-scale benthic habitat maps (http://www.emodnet-seabedhabitats.eu/default.aspx) using QGIS (https://www.qgis.org/en/site/)(Appendix S5). For all analyses of diversity partitioning and of the relationship between geographic distance and faunal dissimilarity in modern benthic ecosystems we compare only samples that are constrained to come from the same substrate type and from similar depths (within 5 m of each other).  
+
+#R Scripts to Reproduce Analyses
+
+###Reading in packages and defining parameters
+Below we present the full annoted R code used for all of the data manipulations, analyses, and figures presented.  
+
+Begin by loading the required packages (packages must be installed prior to loading):  
+```{r}
+library(EcoSimR)
+library(vegan)
+library(gdata)
+library(data.table)
+library(maps)
+library(cowplot)
+library(gridExtra)
+library(betapart)
+library(ggrepel)
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(ggpubr)
+library(fossil)
+```
+Set the path of the working directory. Appendices S1-S5 should be placed in this folder prior to running , and all figures will print to it.
+```{r}
+setwd("~/Dropbox/Ediacaran diversity partitioning/EdiaPartition")
+```
+Load input data files:
+```{r}
+#Read in Appendix 1 (the Ediacaran datasets)
+Ediadata <- read.csv("Appendix.S1.csv",header=TRUE)
+#Read in Appendix 2 (the Paleobiology database download, previously saved as an .rds file to speed up loading)
+Phandata <- readRDS("Appendix.S2.rds")
+#Read in Appendix 3 (Maotianshan shale dataset from Zhao et al., 2014)
+Maotianshan <- read.csv("Appendix.S3.csv",header=TRUE)
+#Read in Appendix 4 (European OBIS datasets, intersected with EMODnet benthic habitat maps and saved as an .rds file)
+EurDat <- readRDS("Appendix.S4.rds")
+#Read in Appendix 5 (EPA EMAPS datasets, saved as an .rds file)
+EmapsDat <- readRDS("Appendix.S5.rds")
+```
+Set a variety of parameters that will be used in selecting and analyzing data downstream:  
+```{r}
+#Specify the number of times to draw individuals from distributions (number of subsample replicates). Set at 100, but reduce to 10 to increase processing speed for exploratory runs:
+n.reps <- 10
+#Specify number of iterations used by Multipart to determine "expected" beta diversity given the number of collections and the pooled diversity-abundance structure of the datasets. Set at 100, but reduce to 10 for exploratory runs:
+n.resamp <- 10
+#Specify the minimum number of collections for a dataset to be included (must be >=  2):
+col.sub.n <- 2
+#Set the minimum number of individuals for a collection to be included (also sets the number of individuals drawn per collection for subsampling analyses):
+indivs <- 50
+#Set the minimum number of taxa required for collections to be included:
+ngen <- 2
+#Set the minimum number of taxonomic classes required to include datasets:
+n.classes <- 2
+#Set the number of genera required to include datasets:
+MinGen <- 2
+#Set the geographic bin sizes used for grouping modern collections into datasets (in fractions of degrees: 1 =.01 degrees square, 2 =.02 degrees square, etc.):
+ModBinRes <- 1
+#Set the geographic bin sizes used for grouping fossil collections collections into datasets (in fractions of degrees: 1 =.01 degrees square, 2 =.02 degrees square, etc.):
+PhanBinRes <- 1
+#Set the size of depth bins used for grouping modern collections into datasets (in meters):
+DepthRes <- 10
+#Choose the dissimilarity metric to be calculated (options include"raup","jaccard","horn"):
+Dist.met <- "bray"
+```
+###Processing Ediacaran data
+Remove collections that are not to be included in analyses, either because they are from different formations in the Mistaken Point area ("bc_surface","pc_surface","sh_surface") or from distant localities in the Nilpena area ("Rugo (45)","STC-B (104)"):  
+```{r}
+col.drops <- c("bc_surface","pc_surface","sh_surface","Rugo (45)","STC-B (104)")
+Ediadata <-  Ediadata[ ! Ediadata$collection_no %in% col.drops, ]
+```
+Assign formation names:  
+```{r}
+Ediadata$formation <-  ifelse(Ediadata$region == "Nilpena","Rawnsley.Qzt","Mistaken Pt.")
+```
+Decide whether to use raw or "taphonomically corrected" abundances (for example, latter includes coarse estimates of abundance of *Funisia*, which is too abundant and dense to count in some beds).
+
+Raw counts:  
+```{r}
+Ediadata$abundance <- Ediadata$abundance
+```
+Adjusted counts:  
+```{r}
+#Ediadata$abundance <- Ediadata$taph.corrected.abundance
+```
+Optionally, remove "BOF", which may be an algae not a metazoan:  
+```{r}
+taxdrops <- c("BOF")
+Ediadata <-  Ediadata[ ! Ediadata$taxon %in% taxdrops, ]
+```
+Assign dataset identifier, intervals, environmental setting, and lat/long bin columns to each dataset:  
+```{r}
+Ediadata$dataset.par <- paste(Ediadata$region,Ediadata$formation,Ediadata$facies)
+Ediadata$interval <- c("Ediacaran")
+Ediadata$environment <- ifelse(Ediadata$facies == "Slope.Turbidites","slope","nearshore")
+Ediadata$setting <- "Ediacaran"
+Ediadata$LatBin <- round(Ediadata$decimalLatitude/PhanBinRes,2)*PhanBinRes
+Ediadata$LongBin <- round(Ediadata$decimalLongitude/PhanBinRes,2)*PhanBinRes
+```
+Drop the taphonically corrected abundance column to simplify merge with other fossil datasets:  
+```{r}
+Ediadata <- subset(Ediadata, select=-c(taph.corrected.abundance))
+```
+###Processing Phanerozoic data
+Create a column scoring tabulating whether occurrences include numerical abundance data:  
+```{r}
+Phandata$abund_value <- as.numeric(as.character(Phandata$abund_value))
+Phandata$abund_value[is.na(Phandata$abund_value)] <- 0
+Phandata$abund_reported <- ifelse(Phandata$abund_value > 0,1,0)
+```
+Limit to only epibenthic and infaunal taxa:  
+```{r}
+includes <- c("upper-level epifaunal","epifaunal","intermediate-level epifaunal","low-level epifaunal","nektobenthic","semi-infaunal","deep infaunal","infaunal","shallow infaunal","boring")
+Phandata <-  Phandata[Phandata$life_habit %in% includes, ]
+```
+Divide collections in the second Abden Shale into salinity-controlled "topozones", based on Fergusen, 1962, J. of Paleontology, "The Paleoecology of a Lower Carboniferous Marine Transgression",Table 1 (faunal assemblages grouped according to inferred salinity in original publication but this distinction is not recorded in the PBDB):  
+```{r}
+index <- as.numeric(as.character(Phandata$localbed))
+Phandata$localzone <- ifelse(index > 101,"Topozone4",ifelse(index > 68,"Topozone3",ifelse(index > 48,"Topozone2","Topozone1")))
+Phandata$localzone <- ifelse(Phandata$formation == "Second Abden Shale",Phandata$localzone,NA)
+```
+Create a taxonomic name variable (genus level for all subsequent analyses):  
+```{r}
+Phandata$taxname <- Phandata$genus
+```
+Transform the abundance column to make it numeric:  
+```{r}
+Phandata$abund_value <- as.numeric(as.character(Phandata$abund_value))
+```
+Remove collections with no recorded formation name:  
+```{r}
+toBeRemoved <-which(Phandata$formation=="") 
+Phandata <-Phandata[-toBeRemoved,]
+```
+Remove collections with imprecise geographic coordinates:  
+```{r}
+drop.scale <-c("","basin","local area")
+Phandata <- Phandata[ ! Phandata$geogscale %in% drop.scale, ]
+```
+Exclude vertebrates, microfossils, and other inconsistently reported groups:  
+```{r}
+drop.classes <-c("Conodonta","Foraminferea","Coeloscleritophora","Diplacophora","Graptolithina","Holothuroidea","Palaeoscolecida","Protoconodonta","Radiolaria","Actinopteri","Chondrichthyes","Osteichthyes")
+Phandata <- Phandata[ ! Phandata$class %in% drop.classes, ]
+```
+Exclude lithologies that are indicative of highly variable substrates (introduces possibility of habitat mixing):  
+```{r}
+drop.lith <-c("bindstone","floatstone","bafflestone","framestone","reef rocks")
+Phandata <- Phandata[ ! Phandata$lithology1 %in% drop.lith, ]
+Phandata <- Phandata[ ! Phandata$lithology2 %in% drop.lith, ]
+```
+Exclude St. Cassian Fm. datasets (include patch reefs):  
+```{r}
+Phandata <- Phandata[(Phandata$formation != "Cassian"), ]
+```
+Exclude datasets for which lithology is specified as unknown in collection comments:  
+```{r}
+Phandata <- Phandata[-grep("SPECIFIC LITHOLOGY: Unknown", Phandata$lithdescript), ]
+```
+Exclude datasets for which no lithology is given:  
+```{r}
+Phandata <- Phandata[!(is.na(Phandata$lithology1) | Phandata$lithology1==""), ]
+```
+Exclude datasets for which fossils come from both primary and secondary lithology (also introduces possibility of habitat mixing):  
+```{r}
+Phandata$mixed <- ifelse(Phandata$fossilsfrom1 == "Y" & Phandata$fossilsfrom2 =="Y","Yes","No")
+Phandata <- Phandata[(Phandata$mixed == "No"),]
+```
+Define latitude and longitude bins to be used in grouping collections into datasets, define coordinate bins:  
+```{r}
+Phandata$LatBin <- round(Phandata$lat/PhanBinRes,2)*PhanBinRes
+Phandata$LongBin <- round(Phandata$lng/PhanBinRes,2)*PhanBinRes
+Phandata$coordinates <- paste(Phandata$LatBin,Phandata$LongBin)
+```
+Define datasets based on common coordinate bin, formation, lithology, etc.:  
+```{r}
+Phandata$dataset.par <- paste(Phandata$reference_no,Phandata$environment,Phandata$formation, Phandata$member,Phandata$coordinates,Phandata$max_ma,Phandata$min_ma,Phandata$localzone,Phandata$zone,Phandata$lithology1,Phandata$lithology2,Phandata$lithadj1,Phandata$lithadj2,Phandata$minor_lithology1,Phandata$minor_lithology2,Phandata$minor_lithology1,Phandata$minor_lithology2,Phandata$fossilsfrom1,Phandata$fossilsfrom2,Phandata$stratscale,Phandata$zone,Phandata$collection_coverage,Phandata$lithdescript,Phandata$collection_methods)
+```
+Round up abundance values (to deal with very rare non-integer abundances):  
+```{r}
+Phandata$abund_value <- ceiling(Phandata$abund_value)
+```
+Count the numbers of classes in each collection, append this as a new column:  
+```{r}
+n.class <- function(df) length(unique(df$class))
+dataset.stats <- ddply(Phandata,.(dataset.par),each(n.class),.progress = "text")
+Phandata <- merge(Phandata,dataset.stats)
+```
+Assorted additional culls to remove reefs and poorly-defined, poorly-censused, or poorly-resolved datasets:  
+```{r}
+Phandata <- Phandata[(Phandata$n.class >= n.classes & Phandata$stratscale =="bed" & Phandata$environment != "carbonate indet." &  Phandata$environment != "marine indet." & Phandata$collection_type == "paleoecologic" & Phandata$latlng_basis != "based on political unit" & Phandata$environment != "reef, buildup or bioherm" & Phandata$environment != "slope/ramp reef" & Phandata$environment != "platform/shelf-margin reef"),]
+```
+Assign interval column:  
+```{r}
+Phandata$interval <- c("Phanerozoic")
+```
+Assign a broad environmental column:  
+```{r}
+Phandata$setting <- ifelse(Phandata$environment == "estuary/bay" | Phandata$environment == "lagoonal" | Phandata$environment == "lagoonal/restricted shallow subtidal" | Phandata$environment == "interdistributary bay","estuarine/lagoonal",ifelse(Phandata$environment == "coastal indet." | Phandata$environment =="shoreface" | Phandata$environment =="delta front" | Phandata$environment =="deltaic indet." | Phandata$environment =="foreshore" | Phandata$environment =="marginal marine indet." | Phandata$environment =="open shallow subtidal" | Phandata$environment == "prodelta" | Phandata$environment == "peritidal"| Phandata$environment =="sand shoal"| Phandata$environment =="shallow subtidal indet." | Phandata$environment =="shoreface","shallow marine","deep marine"))
+```
+Select only the variables to include in the matrix dataset:  
+```{r}
+Phandata <- Phandata[c("dataset.par","collection_no","cc","min_ma","formation","lithology1","environment","lat","lng","taxname","abund_value","interval","setting","LatBin","LongBin")]
+colnames(Phandata) <- c("dataset.par","collection_no","region","min_ma","formation","facies","environment","decimalLatitude","decimalLongitude","taxon","abundance","interval","setting","LatBin","LongBin")
+```
+Process Maotianshan shale dataset (from Zhao et al., 2014):  
+```{r}
+Maotianshan <- na.omit(melt(Maotianshan,id=c("dataset.par","region","min_ma","formation","facies","environment","setting","interval","decimalLatitude","decimalLongitude","LatBin","LongBin","taxon","lifestyle","nektobenthic")))
+names(Maotianshan)[names(Maotianshan) == 'variable'] <- 'collection_no'
+names(Maotianshan)[names(Maotianshan) == 'value'] <- 'abundance'
+Maotianshan$abundance <- as.numeric(as.character(Maotianshan$abundance))
+```
+Remove non-nektobenthic taxa if desired:  
+```{r}
+Maotianshan <- Maotianshan[(Maotianshan$nektobenthic==1),]
+```
+Remove extra columns:  
+```{r}
+Maotianshan <- subset(Maotianshan, select=-c(lifestyle,nektobenthic))   
+```
+Combine Maotianshan with PBDB datasets, then combine all Phanerozoic fossil datasets with Ediacaran datasets, adding several dummy columns so that fossil datasets and modern datasets can eventually be merged:  
+```{r}
+Phandata <- rbind(Phandata,Maotianshan)
+Fossildata <- rbind(Phandata,Ediadata)
+Fossildata$depth.slice <- "not.applicable"
+Fossildata$maxdepth <- "not.applicable"
+Fossildata$mindepth <- "not.applicable"
+Fossildata$depthrange <- "not.applicable"
+Fossildata$sample.year <- 1
+Fossildata$dataset.dist <- Fossildata$dataset.par
+```
+###Processing modern data
+Make an EMAPS collection code that combines station name and sampling date:  
+```{r}
+EmapsDat$collectionCode <- paste(EmapsDat$Station.Name,EmapsDat$Sampling.Collection.Date)
+```
+Round up sample year:  
+```{r}
+EmapsDat$Sampling.Year <- ceiling(EmapsDat$Sampling.Year)
+```
+Remove unused columns from the EMAPS download, rename the remaining columns, add new columns:  
+```{r}
+EmapsDat <- subset(EmapsDat, select=c(datasetID2,collectionCode,Replicate.Abundance,Replicate.Number,Sampling.Collection.Date,Sampling.Year,minimumDepthInMeters,maximumDepthInMeters,Substrate,Energy,Latitude.Decimal.Degrees,Longitude.Decimal.Degrees,genusName,valid.genus))
+colnames(EmapsDat) <- c("dataset","collection.code","abun_value","replicate","sample.date","sample.year","minimum.depth","maximum.depth","substrate","energy","decimalLatitude","decimalLongitude","genus","genus.use")
+EmapsDat$sample.month <- "unknown"
+EmapsDat$field.number <- 1
+```
+Remove OBIS datasets that were sampled by dredge, trawl, or unknown method:  
+```{r}
+prob.samps <-c(""," ","Beam trawl","Bottom trawl","Cone net","Epibenthic sled","Handline","Mixed; well documented","Petersen Dredge","Quantitative modified Sanders sledge (1 m\xac_). Sieve mesh size: 1 mm","SamplerTypeCode=EK; MeshSize(um)=500","SamplerTypeCode=EK; MeshSize(um)=500.0","SamplerTypeCode=HUGGARE; MeshSize(um)=1000","SamplerTypeCode=OC; MeshSize(um)=1000.0","SamplerTypeCode=OL; MeshSize(um)=1000","SamplerTypeCode=PT; MeshSize(um)=1000.00","SamplerTypeCode=SQR; MeshSize(um)=1000.0")
+EurDat <- EurDat[ ! EurDat$samplingProtocol %in% prob.samps, ]
+```
+Remove vertebrates, plants, and very small taxa from OBIS data:  
+```{r}
+prob.phylum <-c("Chordata","Chlorophyta","Tardigrada","Rhodophyta","Foraminifera")
+EurDat <- EurDat[ ! EurDat$phylum %in% prob.phylum, ]
+```
+Remove zooplankton groups from OBIS data:  
+```{r}
+EurDat <- EurDat[(EurDat$scientificName !=  "Zooplankton"),]
+```
+Remove unused columns from the OBIS download, rename the remaining columns, add new columns:  
+```{r}
+EurDat <- subset(EurDat, select=c(datasetID2,collectionCode,individualCount,fieldNumber,Sampling_Date,month,year,minimumDepthInMeters,maximumDepthInMeters,Substrate,Energy,decimalLatitude,decimalLongitude,genusName,Genus.resolved))
+colnames(EurDat) <- c("dataset","collection.code","abun_value","field.number","sample.date","sample.month","sample.year","minimum.depth","maximum.depth","substrate","energy","decimalLatitude","decimalLongitude","genus","genus.use")
+EurDat$replicate <- 1
+```
+Combine Emaps and Eurobis datasets into a single dataframe:  
+```{r}
+Moddata <- rbind(EurDat,EmapsDat)
+```
+Define lat, long, and depth bins for aggregating collections into datasets:  
+```{r}
+Moddata$depth.slice <- ceiling(Moddata$maximum.depth/DepthRes)*DepthRes
+Moddata$LatBin <- round(Moddata$decimalLatitude/ModBinRes,2)*ModBinRes
+Moddata$LongBin <- round(Moddata$decimalLongitude/ModBinRes,2)*ModBinRes
+Moddata$coordinates <- paste(Moddata$LatBin,Moddata$LongBin)
+```
+Make a collection ID code by concatenating all unique variables:  
+```{r}
+Moddata$collection_no <- paste(Moddata$dataset,Moddata$collectionCode,Moddata$decimalLatitude,Moddata$decimalLongitude,Moddata$maximum.depth,Moddata$sample.year,Moddata$sample.month,Moddata$sample.date)
+```
+Remove unresolved taxa:  
+```{r}
+Moddata <- Moddata[(Moddata$genus.use == 1 & Moddata$genus != ""),]
+```
+Remove additional taxon names that are generically unresolved:  
+```{r}
+indets <-c("POLYPLACOPHORA","Polyplacophora","PLATYHELMINTHES","Platyhelminthes","Osteichthyes","OSTEICHTHYES","Neoloricata","NEOLORICATA","Brachyura","BRACHYURA","BIVALVE","BIVALVIA","","ACTINIARIA","Actiniaria","Porifera","PORIFERA","SIPUNCULA","Sipuncula","Turbellaria","TURBELLARIA","Echiura","ECHIURA","Echinodermata","Cirripedia","Cephalaspidea","Branchiura","Ascidia","Nemertinea","Cladocera","NEMERTINI","unidentified","CHITON","Annelida")
+Moddata <- Moddata[ ! Moddata$genus %in% indets, ]
+```
+Correct misspellings of certain genus names to ensure taxonomic consistency within datasets:  
+```{r}
+Moddata$taxon <- drop.levels(gsub("Ampelicsa", "Ampelisca",Moddata$genus))
+Moddata$taxon <- drop.levels(gsub("Pisidia", "Phisidia",Moddata$genus))
+```
+Create sampling interval bins
+```{r}
+Moddata$time.bin <- ceiling(Moddata$sample.year/3)*3
+```
+Combine coordinates, time bin, depth, substrate to define unique datasets for diversity partitioning:  
+```{r}
+Moddata$dataset.par <- paste(Moddata$coordinates,Moddata$time.bin,Moddata$dataset,Moddata$depth.slice,Moddata$substrate,Moddata$energy)
+```
+Combine depth, substrate to define broader datasets for distance-decay analyses:  
+```{r}
+Moddata$dataset.dist <- paste(Moddata$dataset,Moddata$time.bin,Moddata$depth.slice,Moddata$substrate,Moddata$energy)
+```
+Add dummy columns for merging with fossil data:  
+```{r}
+Moddata$min_ma <- 0
+Moddata$formation <- "not.applicable"
+Moddata$environment <- Moddata$energy
+Moddata$facies <- Moddata$substrate
+Moddata$interval <- "Modern"
+Moddata$setting <- "Unknown"
+Moddata$region <- "Unknown"
+```
+Remove collections with uncounted taxa:  
+```{r}
+Moddata$counted <- ifelse(Moddata$abun_value == "" | Moddata$abun_value <= 0 ,0,1)
+completeness <- function(df) mean(df$counted)
+prop.complete <- ddply(Moddata,.(collection_no),each(completeness))
+Moddata <- merge(Moddata,prop.complete)
+Moddata <- Moddata[(Moddata$completeness == 1),]
+```
+Remove datasets without depth information, or that are entirely intertidal:  
+```{r}
+Moddata2 <- Moddata[!is.na(Moddata$maximum.depth),]
+Moddata <- Moddata[(Moddata$maximum.depth > 0),]
+```
+Remove samples without substrate data, or where substrate is just given as "mixed", or is rocky:  
+```{r}
+Moddata <- Moddata[!is.na(Moddata$facies),]
+Moddata <- Moddata[(Moddata$facies != "Mixed sediment" & Moddata$facies != "Unknown" & Moddata$facies != "Seabed" & Moddata$facies != "Rock or other hard substrata"),]
+```
+Calculate dataset depth ranges and merge them in:  
+```{r}
+depths <- function(df) {
+  maxdepth <- max(df$maximum.depth)
+  mindepth <- min(df$maximum.depth)
+  depthrange <- maxdepth-mindepth
+  return(data.frame(maxdepth,mindepth,depthrange))
+}
+dataset.depth <- ddply(Moddata,.(dataset),depths,.progress="text")
+Moddata <- merge(Moddata,dataset.depth)
+Moddata$taxon  <- Moddata$genus
+```
+Remove sites that have multiple depths at the same coordinate:  
+```{r}
+Moddata$site.coords <- paste(Moddata$decimalLongitude,Moddata$decimalLatitude)
+num.depths <- function(df) length(unique(df$maximum.depth))
+depths <- ddply(Moddata,.(dataset,site.coords),each(num.depths),.progress="text")
+Moddata <- merge(Moddata,depths)
+Moddata <- Moddata[(Moddata$num.depths == 1),]
+```
+Select only columns to be used in merge with fossil data:  
+```{r}
+Moddata <- subset(Moddata, select=c(dataset.par,dataset.dist,sample.year,collection_no,region,min_ma,formation,facies,environment,decimalLatitude,decimalLongitude,taxon,abun_value,interval,setting,LatBin,LongBin,depth.slice,maxdepth,mindepth,depthrange))
+```
+Combine in case there are two or more genus occurrences from same collection:  
+```{r}
+abundance <- function(df) sum(df$abun_value)
+Moddata <- ddply(Moddata,.(dataset.par,dataset.dist,sample.year,collection_no,region,min_ma,formation,facies,environment,decimalLatitude,decimalLongitude,interval,setting,taxon,LatBin,LongBin,depth.slice,maxdepth,mindepth,depthrange),each(abundance),.progress='text')
+```
+###Combining fossil and modern data and compiling summary stats
+Merge modern data with fossil data:  
+```{r}
+Alldata <- rbind(Moddata,Fossildata)
+Alldata <- Alldata[(Alldata$abundance > 0),]
+```
+Tabulate collection abundance and richness, remove those that fall below chosen cutoffs:  
+```{r}
+Col.Sample.Size <- function(df) sum(df$abundance)
+Col.Sample.Richness <- function(df) nrow(df)
+col.inds <- ddply(Alldata,.(collection_no),each(Col.Sample.Size,Col.Sample.Richness),.progress='text')
+Alldata <- merge(Alldata,col.inds)
+Alldata <- Alldata[(Alldata$Col.Sample.Size >= indivs & Alldata$Col.Sample.Richness > 2),]
+```
+Tabulate number of sufficient collections and total taxa in each dataset, depth range in dataset:  
+```{r}
+n.ind <- function(df) sum(df$abundance)
+n.col <- function(df) length(unique(df$collection_no))
+n.tax <- function(df) length(unique(df$taxon))
+dataset.stats <- ddply(Alldata,.(dataset.par),each(n.ind,n.tax,n.col),.progress = "text")
+Alldata <- merge(Alldata,dataset.stats)
+Alldata$abundance <- as.numeric(as.character(Alldata$abundance))
+Alldata$taxon <- as.character(Alldata$taxon)
+```
+Reshape the dataframe to make it into a genus abundance matrix for vegan functions:  
+```{r}
+Alldata2 <- melt(as.data.table(Alldata),id=c("interval","sample.year","setting","dataset.par","dataset.dist","collection_no","region","min_ma","formation","facies","environment","Col.Sample.Size","Col.Sample.Richness","n.ind","n.tax","n.col","LatBin","LongBin","decimalLatitude","decimalLongitude","depth.slice","maxdepth","mindepth","depthrange","taxon"))
+Alldata2 <- as.data.frame(dcast.data.table(Alldata2, interval + sample.year + setting + dataset.par + dataset.dist + region + min_ma + formation + facies + environment + Col.Sample.Size + Col.Sample.Richness + n.ind + n.tax + n.col + collection_no + LatBin  + LongBin + decimalLatitude + decimalLongitude + depth.slice + maxdepth + mindepth + depthrange + variable ~ taxon, value.var = 'value', fun.aggregate = sum, na.rm = TRUE))
+```
+Make a copy to be used for distance decay analyses:  
+```{r}
+Alldata.dist <- Alldata2 
+```
+Now cull down according to criteria for number of collections & taxa in dataset:  
+```{r}
+Alldata2 <- Alldata2[(Alldata2$n.tax >= MinGen & Alldata2$n.col >= col.sub.n & Alldata2$n.ind >= Alldata2$n.col * indivs),]
+```
+###Calculating diversity partioning for all datasets
+
+Make a vector of unique dataset names:  
+```{r}
+dats <- unique(Alldata2$dataset.par)
+```
+Make a list to store output from analyses:  
+```{r}
+AB.outs <- list()
+```
+Make a progress bar:  
+```{r}
+pb = txtProgressBar(min = 0, max = length(dats), initial = 0,style = 3) 
+```
+Copy each dataset n.reps times, subsample n.ind number of individuals from each collection, extract diversity partitioning metrics, then get mean and 95% confidence range of diversity metrics for each dataset:  
+```{r}
+for(i in 1:length(dats)){
+  tryCatch({
+    unit <- dats[i]
+    df <- Alldata2[(Alldata2$dataset.par==unit),]
+    x <- subset(df, select=-c(interval,sample.year,dataset.par,dataset.dist,setting,region,min_ma,formation,facies,Col.Sample.Size,n.ind,n.tax,n.col,collection_no,Col.Sample.Richness,variable,environment,depth.slice,maxdepth,mindepth,depthrange,LatBin,LongBin,decimalLatitude,decimalLongitude))
+    names <- subset(df, select=c(interval,dataset.par,setting,region,min_ma,formation,facies,n.ind,n.tax,n.col,environment,depth.slice,maxdepth,mindepth,depthrange,LatBin,LongBin))[1,]
+    x <- x[,colSums(x) > 0]
+    
+    # subsample col.sub.n samples, n.reps times
+    subsampled <- list()
+    for(k in 1:n.reps){
+      x2 <-  x[sample(nrow(x), df$n.col, replace=FALSE), ]
+      x2$iteration <- k
+      subsampled[[k]] <- x2
+    }
+    subsampled <- do.call("rbind",subsampled)
+    
+    subsample.abun <- function(y){
+      y <-  subset(y, select=-c(iteration))
+      sub <- data.frame(rrarefy(y,indivs))
+      return(sub)
+    }
+    subsampled2 <- ddply(subsampled,.(iteration),each(subsample.abun))
+    its <- unique(subsampled2$iteration)
+    outs <- list()
+    for (j in its){
+      x <- subsampled2[(subsampled2$iteration==j),]
+      x <- x[,colSums(x) > 0]
+      x <- drop.levels(subset(x, select=-c(iteration)))
+      x2 <- colSums(x)
+      l1 <- seq(1:nrow(x))
+      l2 <- rep(1,nrow(x))
+      levs <- data.frame(l1,l2)
+      bray <- vegdist(x, method=Dist.met, binary=FALSE, diag=FALSE, upper=FALSE,na.rm = TRUE)
+      braybeta <- betadisper(bray, group= l2,type = c("centroid"))
+      mean.bc.centroid.dist <- mean(braybeta$distances)
+      mp1 <- multipart(x ~ .,levs, index="tsallis",scales=1, nsimul=n.resamp,relative = FALSE,global = FALSE)
+      alpha.q1 <-mp1$statistic[1]
+      gamma.q1 <- mp1$statistic[2]
+      beta.q1 <- mp1$statistic[3]
+      alpha.q1.null <- mp1$oecosimu$means[1]
+      gamma.q1.null <- mp1$oecosimu$means[2]
+      beta.q1.null <- mp1$oecosimu$means[3]
+      alpha.q1.diff <- alpha.q1 - alpha.q1.null
+      beta.q1.diff <- beta.q1 - beta.q1.null
+      gamma.q1.diff <- gamma.q1 - gamma.q1.null
+      pval <- mp1$oecosimu$pval[1]
+      meandist <- function(xdf) mean(as.vector(vegdist(xdf, Dist.met)))
+      mbc1 <- oecosimu(x, meandist, nsimul = 100,"r2dtable")
+      obs.mean <- mbc1$statistic
+      sim.mean <- mbc1$oecosimu$mean
+      beta.deviation <- obs.mean - sim.mean
+      x2 <-  ifelse(x>0,1,0)
+      sumx <- colSums(x)
+      mean.simp <- mean(diversity(x, index = "simpson"))
+      sum.simp <- diversity(sumx, index = "simpson")
+      mean.shannon <- mean(diversity(x, index = "shannon"))
+      sum.shannon <- diversity(sumx, index = "shannon")
+      bet <-  beta.multi(x2, index.family="sor")
+      beta.SIM <- bet$beta.SIM
+      beta.SNE <- bet$beta.SNE
+      beta.SOR <- bet$beta.SOR
+      dca <- decorana(x)
+      dca1.val <- dca$evals.decorana[1]
+      scores1 <- data.frame(scores(dca))$DCA1
+      scores2 <- data.frame(scores(dca))$DCA2
+      dca1.length <- max(scores1) - min(scores1)
+      dca2.length <- max(scores2) - min(scores2)
+      
+      dev.out <- data.frame(obs.mean,sim.mean,beta.deviation)
+      out <- data.frame(alpha.q1,beta.q1,gamma.q1,alpha.q1.null,beta.q1.null,gamma.q1.null,alpha.q1.diff,beta.q1.diff,gamma.q1.diff,pval,dev.out,mean.bc.centroid.dist, beta.SIM,beta.SNE,beta.SOR,dca1.val,dca1.length,dca2.length,mean.simp,sum.simp,mean.shannon,sum.shannon)
+      outs[[j]] <- out  
+    }
+    subs <- do.call("rbind",outs)
+    subs <- melt(subs)
+    
+    subs.stats <- function(df){
+      stat <- t((quantile(df$value,c(.025,.5,.975),na.rm=TRUE)))
+      mean <- mean(df$value)
+      stdev <- sd(df$value)
+      stat<- data.frame(stat,mean,stdev)
+      return(stat)
+    }
+    summary.stats <- ddply(subs,.(variable),each(subs.stats))
+    rownames(summary.stats) <- summary.stats$variable
+    summary.stats <-subset(summary.stats, select=-c(variable))
+    summary.stats2 <- as.matrix(summary.stats)
+    summary.stats3 <- data.frame(t(data.frame(unmatrix(summary.stats2,byrow=TRUE))))
+    summary.stats3$resamp.n.indivs.per.sample <- indivs
+    summary.stats3$resamp.n.samples <- df$n.col[1]
+    summary.stats3$resamp.n.iterations <- n.reps
+    summary.stats3 <- data.frame(names,summary.stats3)
+    AB.outs[[i]]  <- summary.stats3
+    setTxtProgressBar(pb,i)
+  }
+  , error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
+}
+AB.outs2 <- do.call("rbind",AB.outs)
+```
+Save output as a .csv file for later use or inspection outside of R  
+```{r}
+write.csv(AB.outs2,"Diversity_Partitioning_Output.csv")
+```
+Read back in (start here if analyzing/subsetting output rather than rerunning partitioning analyses)
+```{r}
+data.part <- read.csv("Diversity_Partitioning_Output.csv",header=TRUE)
+```
+Cull datasets that do not meet criteria:  
+```{r}
+#data.part <- data.part[(data.part$n.col >= col.sub.n & data.part$n.tax >= MinGen & data.part$n.ind >= data.part$n.col * indivs),]
+data.part <- data.part[(data.part$n.col >= 2 & data.part$n.tax >= MinGen & data.part$n.ind >= data.part$n.col * indivs),]
+```
+Calculate percentile ranks of Ediacaran datasets compared to fossil & fossil + modern:  
+```{r}
+edia <- data.part[(data.part$interval == "Ediacaran"),]$beta.q1.diff.X50.
+phan <- data.part[(data.part$interval == "Phanerozoic"),]$beta.q1.diff.X50.    
+mod <- data.part[(data.part$interval == "Modern"),]$beta.q1.diff.X50. 
+ediaphan <- c(edia,phan)
+phanmod <- c(phan,mod)
+ediamod <- c(edia,mod)
+perc.rank <- function(x) trunc(rank(x))/length(x)
+ediaphan.maxrank <- max(round(perc.rank(ediaphan)*100,0)[1:3])
+ediaphan.minrank <- min(round(perc.rank(ediaphan)*100,0)[1:3])
+ediamod.maxrank <- max(round(perc.rank(ediamod )*100,0)[1:3])
+ediamod.minrank <- min(round(perc.rank(ediamod )*100,0)[1:3])
+ediamod.maxrank <- max(round(perc.rank(ediamod )*100,0)[1:3])
+ediamod.minrank <- min(round(perc.rank(ediamod )*100,0)[1:3])
+```
+Make Kolmogorov-Smirnov and Mann-Whitney comparisons between modern and fossil excess beta distribution  
+```{r}
+mod.phan.comp.ks.p <- 1-(ks.test(mod,phan,alternative ="two.sided")$p.value)
+phan.mod.comp.mw.p <- wilcox.test(mod,phan,alternative ="two.sided")$p.value
+```
+###Making figures 1,S1-S9
+Make FigS3 panels (plots of alpha and excess beta diversity through time for fossil datasets). Make and set plotting order:  
+```{r}
+data.part$plot.layer <- ifelse(data.part$region == "Mistaken Point","Mistaken Pt.",ifelse(data.part$region == "Nilpena","Nilpena",ifelse(data.part$interval == "Modern","Modern","Phanerozoic")))
+data.part$plot.layer <- factor(data.part$plot.layer, levels = c("Modern", "Phanerozoic","Nilpena","Mistaken Pt."))
+data.part$order <- ifelse(data.part$plot.layer=="Modern",1,ifelse(data.part$plot.layer=="Phanerozoic",2,3))
+```
+Set shapes, colors, fills, and alphas  
+```{r}
+point.shapes <- c(21,22,24,25)
+point.fills <- c("deepskyblue1","gold","red","magenta")
+fill.outlines <- c("black","black","black","black")
+point.alphas <- c(.7,.7,.7,.7)
+lag.point.alphas <- c(.07,.07,.7,.7)
+lag.hist.alphas <- c(0,.7,.7,.7)
+```
+Make a dataframe for plotting histograms that does not include Ediacarans:  
+```{r}
+data.part <- data.part[(data.part$n.col >= col.sub.n & data.part$n.tax >= MinGen),]
+data.part2 <- data.part[(data.part$interval != "Ediacaran"),]
+```
+Plot Figure 1:  
+```{r}
+ylimits <- aes(ymax=beta.q1.diff.X97.5.,ymin=beta.q1.diff.X2.5.,colour=plot.layer)
+xlimits <- aes(xmax=alpha.q1.X97.5.,xmin=alpha.q1.X2.5.,colour=plot.layer)
+lab.dat <- data.part[(data.part$plot.layer == "Mistaken Pt." | data.part$plot.layer == "Nilpena"),]
+
+pdf("Fig.1.pdf",7,6.7)
+pmain <- ggplot(data.part %>% arrange(plot.layer),aes(alpha.q1.X50.,beta.q1.diff.X50.,fill=plot.layer,pch=plot.layer,alpha=plot.layer,order=order)) + 
+  geom_point(size=4,colour="black")+
+  geom_hline(yintercept=0,size=.5,linetype=1,colour="darkgray") +
+  geom_errorbar(ylimits,width=0) +  
+  geom_errorbarh(xlimits)+ theme_bw() + 
+  theme(panel.grid.major = element_blank()) + 
+  theme(panel.grid.minor = element_blank()) + 
+  scale_fill_manual(values=point.fills) + scale_shape_manual(values=point.shapes) +
+  ylab(expression(paste("excess ",beta, " diversity"))) + 
+  xlab(expression(paste(alpha," diversity"))) +
+  theme(legend.title=element_blank()) +
+  theme(axis.text=element_text(size=14),axis.title=element_text(size=20,face="bold")) +
+  theme(legend.justification=c(1,1), legend.position=c(.98,.98)) + 
+  theme(legend.text = element_text(size = 14)) + 
+  theme(panel.background = element_rect(fill = NA, color = "black", size = .75)) +
+  scale_colour_manual(values=point.fills)  + 
+  geom_point(size=4,colour="black") +
+  scale_alpha_manual(values=point.alphas) + 
+  theme(legend.key = element_rect(fill = "gray90")) + 
+  theme(legend.background = element_rect(fill="gray90", colour="black",size=.5, linetype=1))
+
+xdens <- axis_canvas(pmain,axis="x") +
+  geom_density(data=data.part2,aes(alpha.q1.X50.,fill=plot.layer,colour=plot.layer,alpha=plot.layer),size=.2,position="identity")+
+  scale_fill_manual(values=point.fills) + 
+  scale_alpha_manual(values=point.alphas) + 
+  scale_colour_manual(values=fill.outlines)
+
+ydens <- axis_canvas(pmain,axis="y",coord_flip=TRUE)+
+  geom_density(data=data.part2,aes(x=beta.q1.diff.X50.,fill=plot.layer,colour=plot.layer,alpha=plot.layer),size=.2,position="identity") + 
+  scale_fill_manual(values=point.fills) + 
+  scale_alpha_manual(values=point.alphas) + 
+  scale_colour_manual(values=fill.outlines) + 
+  coord_flip()
+
+p1 <- insert_xaxis_grob(pmain,xdens,grid::unit(.2,"null"),position="top")
+p2 <- insert_yaxis_grob(p1,ydens,grid::unit(.2,"null"),position="right")
+ggdraw(p2)
+dev.off()
+```
+Make excess beta versus mean distance to centroid scatterplot (Fig.S6):  
+```{r}
+xlimits <- aes(xmax=mean.bc.centroid.dist.X97.5.,xmin=mean.bc.centroid.dist.X2.5.,colour=plot.layer)
+ylimits <- aes(ymax=beta.q1.diff.X97.5.,ymin=beta.q1.diff.X2.5.,colour=plot.layer)
+
+lab.dat <- data.part[(data.part$plot.layer == "Mistaken Pt." | data.part$plot.layer == "Nilpena"),]
+
+pdf("Fig.S6.pdf",7,6.7)
+pmain <- ggplot(data.part %>% arrange(plot.layer),aes(mean.bc.centroid.dist.X50.,beta.q1.diff.X50.,fill=plot.layer,pch=plot.layer,alpha=plot.layer,order=order)) + 
+  geom_point(size=4,colour="black")+
+  geom_hline(yintercept=0,size=.5,linetype=1,colour="darkgray")+ 
+  geom_errorbar(ylimits,width=0) + 
+  geom_errorbarh(xlimits)+ theme_bw() + 
+  theme(panel.grid.major = element_blank()) + 
+  theme(panel.grid.minor = element_blank()) + 
+  scale_fill_manual(values=point.fills) + 
+  scale_shape_manual(values=point.shapes) + 
+  xlab("Mean dissimilarity to centroid") + 
+  ylab(expression(paste("excess ",beta))) + 
+  theme(legend.title=element_blank())+
+  theme(axis.text=element_text(size=14),axis.title=element_text(size=20))+ 
+  theme(legend.justification=c(1,1), legend.position=c(.33,.98)) + 
+  theme(legend.text = element_text(size = 14))+ 
+  theme(panel.background = element_rect(fill = NA, color = "black", size = .75)) +
+  scale_colour_manual(values=point.fills)  + 
+  geom_point(size=4,colour="black") + 
+  scale_alpha_manual(values=point.alphas) + 
+  theme(legend.key = element_rect(fill = "gray90")) + 
+  theme(legend.background = element_rect(fill="gray90", colour="black",size=.5, linetype=1))
+
+xdens <- axis_canvas(pmain,axis="x") +
+  geom_density(data=data.part2,aes(mean.bc.centroid.dist.X50.,fill=plot.layer,colour=plot.layer,alpha=plot.layer),size=.2,position="identity")+ 
+  scale_fill_manual(values=point.fills) + 
+  scale_alpha_manual(values=point.alphas) + 
+  scale_colour_manual(values=fill.outlines)
+
+ydens <- axis_canvas(pmain,axis="y",coord_flip=TRUE) +
+  geom_density(data=data.part2,aes(x=beta.q1.diff.X50.,fill=plot.layer,colour=plot.layer,alpha=plot.layer),size=.2,position="identity") + 
+  scale_fill_manual(values=point.fills) +
+  scale_alpha_manual(values=point.alphas) + 
+  scale_colour_manual(values=fill.outlines) + 
+  coord_flip()
+
+p1 <- insert_xaxis_grob(pmain,xdens,grid::unit(.2,"null"),position="top")
+p2 <- insert_yaxis_grob(p1,ydens,grid::unit(.2,"null"),position="right")
+ggdraw(p2)
+dev.off()
+```
+Plot excess beta against number of collections in dataset (Fig. S3):  
+```{r}
+ylimits <- aes(ymax=beta.q1.diff.X97.5.,ymin=beta.q1.diff.X2.5.,colour=plot.layer)
+
+lab.dat <- data.part[(data.part$plot.layer == "Mistaken Pt." | data.part$plot.layer == "Nilpena"),]
+
+pdf("Fig.S3.pdf",7,6.7)
+pmain <- ggplot(data.part %>% arrange(plot.layer),aes(log(n.col),beta.q1.diff.X50.,fill=plot.layer,pch=plot.layer,alpha=plot.layer,order=order)) + 
+  geom_point(size=4,colour="black")+
+  geom_hline(yintercept=0,size=.5,linetype=1,colour="darkgray")+
+  geom_errorbar(ylimits,width=0) +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank()) + 
+  theme(panel.grid.minor = element_blank()) + 
+  scale_fill_manual(values=point.fills) + 
+  scale_shape_manual(values=point.shapes) + 
+  ylab(expression(paste("excess ",beta))) + 
+  xlab("Log(number of collections in dataset)") + 
+  theme(legend.title=element_blank())+
+  theme(axis.text=element_text(size=14),axis.title=element_text(size=20))+ 
+  theme(legend.justification=c(1,1), legend.position=c(.98,.98)) +
+  theme(legend.text = element_text(size = 14)) + 
+  theme(panel.background = element_rect(fill = NA, color = "black", size = .75)) +
+  scale_colour_manual(values=point.fills)  + 
+  geom_point(size=4,colour="black") + 
+  scale_alpha_manual(values=point.alphas) + 
+  theme(legend.key = element_rect(fill = "gray90")) + 
+  theme(legend.background = element_rect(fill="gray90", colour="black",size=.5, linetype=1))
+
+xdens <- axis_canvas(pmain,axis="x") +
+  geom_density(data=data.part2,aes(x=log(n.col),fill=plot.layer,alpha=plot.layer),size=.2,position="identity")+ 
+  scale_fill_manual(values=point.fills) +
+  scale_alpha_manual(values=point.alphas)
+
+ydens <- axis_canvas(pmain,axis="y",coord_flip=TRUE) +
+  geom_density(data=data.part2,aes(x=beta.q1.diff.X50.,fill=plot.layer,alpha=plot.layer),size=.2,position="identity") +
+  scale_fill_manual(values=point.fills) + 
+  scale_alpha_manual(values=point.alphas) + 
+  coord_flip()
+
+p1 <- insert_xaxis_grob(pmain,xdens,grid::unit(.2,"null"),position="top")
+p2 <- insert_yaxis_grob(p1,ydens,grid::unit(.2,"null"),position="right")
+ggdraw(p2)
+dev.off()
+```
+Plot excess beta against number of individuals in dataset (Fig. S4):  
+```{r}
+ylimits <- aes(ymax=beta.q1.diff.X97.5.,ymin=beta.q1.diff.X2.5.,colour=plot.layer)
+
+lab.dat <- data.part[(data.part$plot.layer == "Mistaken Pt." | data.part$plot.layer == "Nilpena"),]
+
+pdf("Fig.S4.pdf",7,6.7)
+pmain <- ggplot(data.part %>% arrange(plot.layer),aes(log(n.ind),beta.q1.diff.X50.,fill=plot.layer,pch=plot.layer,alpha=plot.layer,order=order)) + 
+    geom_point(size=4,colour="black")+
+  geom_hline(yintercept=0,size=.5,linetype=1,colour="darkgray")+
+  geom_errorbar(ylimits,width=0) +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank()) + 
+  theme(panel.grid.minor = element_blank()) + 
+  scale_fill_manual(values=point.fills) + 
+  scale_shape_manual(values=point.shapes) + 
+  ylab(expression(paste("excess ",beta))) + 
+  xlab("Log(number of individuals in dataset)") + 
+  theme(legend.title=element_blank())+
+  theme(axis.text=element_text(size=14),axis.title=element_text(size=20))+ 
+  theme(legend.justification=c(1,1), legend.position=c(.98,.98)) +
+  theme(legend.text = element_text(size = 14)) + 
+  theme(panel.background = element_rect(fill = NA, color = "black", size = .75)) +
+  scale_colour_manual(values=point.fills)  + 
+  geom_point(size=4,colour="black") + 
+  scale_alpha_manual(values=point.alphas) + 
+  theme(legend.key = element_rect(fill = "gray90")) + 
+  theme(legend.background = element_rect(fill="gray90", colour="black",size=.5, linetype=1))
+
+xdens <- axis_canvas(pmain,axis="x") +
+  geom_density(data=data.part2,aes(x=log(n.ind),fill=plot.layer,alpha=plot.layer),size=.2,position="identity")+
+  scale_fill_manual(values=point.fills) + 
+  scale_alpha_manual(values=point.alphas)
+
+ydens <- axis_canvas(pmain,axis="y",coord_flip=TRUE) +
+  geom_density(data=data.part2,aes(x=beta.q1.diff.X50.,fill=plot.layer,alpha=plot.layer),size=.2,position="identity") + 
+  scale_fill_manual(values=point.fills) + 
+  scale_alpha_manual(values=point.alphas) + 
+  coord_flip()
+
+p1 <- insert_xaxis_grob(pmain,xdens,grid::unit(.2,"null"),position="top")
+p2 <- insert_yaxis_grob(p1,ydens,grid::unit(.2,"null"),position="right")
+ggdraw(p2)
+dev.off()
+```
+Plot excess beta against number of genera in dataset (Fig. S5):  
+```{r}
+ylimits <- aes(ymax=beta.q1.diff.X97.5.,ymin=beta.q1.diff.X2.5.,colour=plot.layer)
+
+lab.dat <- data.part[(data.part$plot.layer == "Mistaken Pt." | data.part$plot.layer == "Nilpena"),]
+
+pdf("Fig.S5.pdf",7,6.7)
+pmain <- ggplot(data.part %>% arrange(plot.layer),aes(log(n.tax),beta.q1.diff.X50.,fill=plot.layer,pch=plot.layer,alpha=plot.layer,order=order)) + 
+    geom_point(size=4,colour="black")+
+  geom_hline(yintercept=0,size=.5,linetype=1,colour="darkgray")+
+  geom_errorbar(ylimits,width=0) +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank()) + 
+  theme(panel.grid.minor = element_blank()) + 
+  scale_fill_manual(values=point.fills) + 
+  scale_shape_manual(values=point.shapes) + 
+  ylab(expression(paste("excess ",beta))) + 
+  xlab("Log(number of genera in dataset)") + 
+  theme(legend.title=element_blank())+
+  theme(axis.text=element_text(size=14),axis.title=element_text(size=20))+ 
+  theme(legend.justification=c(1,1), legend.position=c(.98,.98)) +
+  theme(legend.text = element_text(size = 14)) + 
+  theme(panel.background = element_rect(fill = NA, color = "black", size = .75)) +
+  scale_colour_manual(values=point.fills)  + 
+  geom_point(size=4,colour="black") + 
+  scale_alpha_manual(values=point.alphas) + 
+  theme(legend.key = element_rect(fill = "gray90")) + 
+  theme(legend.background = element_rect(fill="gray90", colour="black",size=.5, linetype=1))
+
+xdens <- axis_canvas(pmain,axis="x") +
+  geom_density(data=data.part2,aes(x=log(n.tax),fill=plot.layer,alpha=plot.layer),size=.2,position="identity")+ 
+  scale_fill_manual(values=point.fills) +
+  scale_alpha_manual(values=point.alphas)
+
+ydens <- axis_canvas(pmain,axis="y",coord_flip=TRUE) +
+  geom_density(data=data.part2,aes(x=beta.q1.diff.X50.,fill=plot.layer,alpha=plot.layer),size=.2,position="identity") +
+  scale_fill_manual(values=point.fills) + 
+  scale_alpha_manual(values=point.alphas) + 
+  coord_flip()
+
+p1 <- insert_xaxis_grob(pmain,xdens,grid::unit(.2,"null"),position="top")
+p2 <- insert_yaxis_grob(p1,ydens,grid::unit(.2,"null"),position="right")
+ggdraw(p2)
+dev.off()
+```
+Make excess beta versus mean distance to centroid scatterplot highlighting lagerstatte (Fig. S8):  
+```{r}
+lag.dat <- data.part[(data.part$formation == "Burgess Shale" | data.part$formation == "Maotianshan Shale"),]
+
+xlimits <- aes(xmax=mean.bc.centroid.dist.X97.5.,xmin=mean.bc.centroid.dist.X2.5.,colour=plot.layer)
+ylimits <- aes(ymax=beta.q1.diff.X97.5.,ymin=beta.q1.diff.X2.5.,colour=plot.layer)
+
+lab.dat <- data.part[(data.part$plot.layer == "Mistaken Pt." | data.part$plot.layer == "Nilpena"),]
+
+pdf("Fig.S8.pdf",7,6.7)
+pmain <- ggplot(data.part %>% arrange(plot.layer),aes(mean.bc.centroid.dist.X50.,beta.q1.diff.X50.,fill=plot.layer,pch=plot.layer,alpha=plot.layer,order=order)) +
+  geom_point(size=4,colour="black")+ 
+  geom_hline(yintercept=0,size=.5,linetype=1,colour="darkgray")+ 
+  geom_errorbar(ylimits,width=0) +  
+  geom_errorbarh(xlimits)+ 
+  theme_bw() +
+  theme(panel.grid.major = element_blank()) +
+  theme(panel.grid.minor = element_blank()) + 
+  scale_fill_manual(values=point.fills) + 
+  scale_shape_manual(values=point.shapes) + 
+  xlab("Mean dissimilarity to centroid") + 
+  ylab(expression(paste("excess ",beta))) + 
+  theme(legend.title=element_blank())+
+  theme(axis.text=element_text(size=14),axis.title=element_text(size=20))+
+  theme(legend.justification=c(1,1), legend.position=c(.33,.98)) + 
+  theme(legend.text = element_text(size = 14)) + 
+  theme(panel.background = element_rect(fill = NA, color = "black", size = .75)) +
+  scale_colour_manual(values=point.fills)  + 
+  geom_point(size=4,colour="black") + 
+  scale_alpha_manual(values=lag.point.alphas) + 
+  theme(legend.key = element_rect(fill = "gray90")) + 
+  theme(legend.background = element_rect(fill="gray90", colour="black",size=.5, linetype=1)) +
+  geom_point(data=lag.dat,aes(x=mean.bc.centroid.dist.X50.,y=beta.q1.diff.X50.),size=5,colour="black",pch=22,fill="goldenrod1",alpha=1) +
+  geom_label_repel(data=lag.dat,aes(x=mean.bc.centroid.dist.X50.,y=beta.q1.diff.X50.,label=formation),alpha=1,fill="white",fontface = 'bold',size=4,box.padding = unit(0.25, "lines"),point.padding = unit(0.75, "lines"),segment.color = 'black',nudge_x = .2,force=.25)
+
+xdens <- axis_canvas(pmain,axis="x") +
+  geom_density(data=data.part2,aes(mean.bc.centroid.dist.X50.,fill=plot.layer,colour=plot.layer,alpha=plot.layer),size=.2,position="identity")+
+  scale_fill_manual(values=point.fills) + 
+  scale_alpha_manual(values=point.alphas) + 
+  scale_colour_manual(values=fill.outlines)
+
+ydens <- axis_canvas(pmain,axis="y",coord_flip=TRUE) +
+  geom_density(data=data.part2,aes(x=beta.q1.diff.X50.,fill=plot.layer,colour=plot.layer,alpha=plot.layer),size=.2,position="identity") + 
+  scale_fill_manual(values=point.fills) + 
+  scale_alpha_manual(values=point.alphas) + 
+  scale_colour_manual(values=fill.outlines) +
+  coord_flip()
+
+p1 <- insert_xaxis_grob(pmain,xdens,grid::unit(.2,"null"),position="top")
+p2 <- insert_yaxis_grob(p1,ydens,grid::unit(.2,"null"),position="right")
+ggdraw(p2)
+dev.off()
+```
+Plot alpha and excess beta versus time (Fig. 2):
+```{r}
+#Create a dataframe of Period boundaries & colors for plotting diversity trends versus time
+Period <- c("E","Cm","O","S","D","C","P","T","J","K","Pg","Ng","")
+base <- c(635.0, 542.0, 488.3, 443.7, 416.0, 359.2, 299.0, 251.0, 199.6, 145.5,  65.5,  33.9,   2.6)
+top <- c(base[2:13],0)
+midpoint <- base-((base-top)/2)
+color <- c("darkgoldenrod1","olivedrab4","mediumseagreen","aquamarine","darkorange1","lightseagreen","red","purple1","steelblue2","olivedrab3","chocolate1","yellow","lemonchiffon")
+time <- data.frame(Period,base,midpoint,top,color)
+
+time$Ymax <- min(na.omit(data.part$alpha.q1.X50. -.05))
+time$Ymin <- time$Ymax - 2
+time$Ymed <- (time$Ymax + time$Ymin)/2
+maxes <- mean(time$Ymax)
+mins <- mean(time$Ymin)
+bases <- as.vector(time$base)
+y.axis.max <-max(na.omit(data.part$alpha.q1.X50.))
+
+limits <- aes(ymax=alpha.q1.X97.5.,ymin=alpha.q1.X2.5.,colour=plot.layer)
+alpha <- ggplot(data.part %>% arrange(plot.layer),aes(min_ma,alpha.q1.X50.,fill=plot.layer,pch=plot.layer,alpha=plot.layer,order=order)) +
+  geom_errorbar(limits,width=0) + 
+  geom_point(size=3,colour="black") +
+  scale_fill_manual(values=point.fills) + 
+  scale_shape_manual(values=point.shapes) +
+  scale_colour_manual(values=point.fills)  + 
+  scale_alpha_manual(values=point.alphas) +
+  scale_x_reverse() + 
+  annotate("rect", xmin=time$top, xmax=time$base, ymin=time$Ymin, ymax=time$Ymax,fill=as.factor(time$color),size=.25,colour="black",alpha=.75) +
+  annotate("text", x=time$midpoint,y=time$Ymed,label=time$Period,size=4) +
+  coord_cartesian(ylim=c(mins,y.axis.max+1.2),xlim=c(635,-10),expand=FALSE) +
+  theme(legend.text=element_text(size=8)) + 
+  ylab(expression(paste(alpha," diversity")))  + 
+  theme(legend.title=element_blank()) +
+  xlab("Age, Ma") 
+
+time$Ymax <- min(na.omit(data.part$beta.q1.diff.X50. -.05))
+time$Ymin <- time$Ymax - .25
+time$Ymed <- (time$Ymax + time$Ymin)/2
+
+maxes <- mean(time$Ymax)
+mins <- mean(time$Ymin)
+bases <- as.vector(time$base)
+y.axis.max <-max(na.omit(data.part$beta.q1.diff.X50.))
+
+limits <- aes(ymax=beta.q1.diff.X97.5.,ymin=beta.q1.diff.X2.5.,colour=plot.layer)
+beta <- ggplot(data.part %>% arrange(plot.layer),aes(min_ma,beta.q1.diff.X50.,fill=plot.layer,pch=plot.layer,alpha=plot.layer,order=order)) +
+  geom_errorbar(limits,width=0) + 
+  geom_point(size=3,colour="black") +
+  scale_fill_manual(values=point.fills) + 
+  scale_shape_manual(values=point.shapes) +
+  scale_colour_manual(values=point.fills)  + 
+  scale_alpha_manual(values=point.alphas) +
+  scale_x_reverse() + 
+  annotate("rect", xmin=time$top, xmax=time$base, ymin=time$Ymin, ymax=time$Ymax,fill=as.factor(time$color),size=.25,colour="black",alpha=.75) + 
+  annotate("text", x=time$midpoint,y=time$Ymed,label=time$Period,size=4)  +
+  coord_cartesian(ylim=c(mins,y.axis.max+.5),xlim=c(635,-10),expand=FALSE) +
+  theme(legend.text=element_text(size=8)) + 
+  ylab(expression(paste("excess ",beta)))  + 
+  theme(legend.title=element_blank()) +
+  xlab("Age, Ma")
+figure2 <- ggarrange(alpha,beta,
+                    labels = c("A", "B"),
+                    ncol = 1, nrow = 2,common.legend = TRUE, legend = "bottom")
+ggexport(figure2, filename = "Fig.2.pdf")
+dev.off()
+```
+Plot fossil datasets by depth zone (Fig. S7):  
+```{r}
+data.part3 <- drop.levels(data.part[(data.part$setting != "unknown" & data.part$interval != "Modern"),])
+data.part3$plot.layer <- data.part3$setting
+data.part4 <- drop.levels(data.part[(data.part$setting != "unknown" & data.part$interval != "Modern" & data.part$interval != "Ediacaran"),])
+data.part4$plot.layer <- data.part4$setting
+ylimits <- aes(ymax=beta.q1.diff.X97.5.,ymin=beta.q1.diff.X2.5.,colour=plot.layer)
+xlimits <- aes(xmax=alpha.q1.X97.5.,xmin=alpha.q1.X2.5.,colour=plot.layer)
+
+lab.dat <- data.part[(data.part$plot.layer == "Mistaken Pt." | data.part$plot.layer == "Nilpena"),]
+
+point.fills <- c( "blue", "red","green" ,"cyan" )
+point.fills2 <- c( "blue","green" ,"cyan","yellow" )
+point.shapes <- c(22,24,23,21)
+
+pdf("Fig.S7.pdf",7,6.7)
+pmain <- ggplot(data.part3 %>% arrange(plot.layer),aes(alpha.q1.X50.,beta.q1.diff.X50.,fill=plot.layer,pch=plot.layer,alpha=plot.layer,order=order)) + 
+  geom_point(size=4,colour="black")+ 
+  geom_hline(yintercept=0,size=.5,linetype=1,colour="darkgray") +
+  geom_errorbar(ylimits,width=0) +  
+  geom_errorbarh(xlimits)+ 
+  theme_bw() + 
+  theme(panel.grid.major = element_blank()) + 
+  theme(panel.grid.minor = element_blank()) + 
+  scale_fill_manual(values=point.fills) + 
+  scale_shape_manual(values=point.shapes) + 
+  ylab(expression(paste("excess ",beta, " diversity"))) +
+  xlab(expression(paste(alpha," diversity"))) + 
+  theme(legend.title=element_blank())+
+  theme(axis.text=element_text(size=14),axis.title=element_text(size=20,face="bold"))+
+  theme(legend.justification=c(1,1), legend.position=c(.98,.98)) +
+  theme(legend.text = element_text(size = 14)) +
+  theme(panel.background = element_rect(fill = NA, color = "black", size = .75)) +
+  scale_colour_manual(values=point.fills)  + 
+  geom_point(size=4,colour="black") + 
+  scale_alpha_manual(values=point.alphas) + 
+  theme(legend.key = element_rect(fill = "gray90"))+
+  theme(legend.background = element_rect(fill="gray90", colour="black",size=.5, linetype=1))
+
+xdens <- axis_canvas(pmain,axis="x") +
+  geom_density(data=data.part4,aes(alpha.q1.X50.,fill=plot.layer,colour=plot.layer,alpha=plot.layer),size=.2,position="identity")+ 
+  scale_fill_manual(values=point.fills2) + 
+  scale_alpha_manual(values=point.alphas) + 
+  scale_colour_manual(values=fill.outlines)
+
+ydens <- axis_canvas(pmain,axis="y",coord_flip=TRUE) +
+  geom_density(data=data.part4,aes(x=beta.q1.diff.X50.,fill=plot.layer,colour=plot.layer,alpha=plot.layer),size=.2,position="identity") + 
+  scale_fill_manual(values=point.fills2) + 
+  scale_alpha_manual(values=point.alphas) + 
+  scale_colour_manual(values=fill.outlines) + 
+  coord_flip()
+
+p1 <- insert_xaxis_grob(pmain,xdens,grid::unit(.2,"null"),position="top")
+p2 <- insert_yaxis_grob(p1,ydens,grid::unit(.2,"null"),position="right")
+ggdraw(p2)
+dev.off()
+```
+Plot maps of dataset locations (Fig S1, Fig. S2):  
+```{r}
+coords <- unique(Alldata2[c("dataset.par","interval","LongBin","LatBin")])
+mod.coords <- coords[(coords$interval == "Modern"),]
+foss.coords <- coords[(coords$interval != "Modern"),]
+
+# plot locations of modern samples
+pdf("Fig.S2.pdf",8,4)
+mp <- NULL
+mapWorld <- borders("world", colour="gray43", fill="gray43") # create a layer of borders
+mp <- ggplot() +  mapWorld
+
+# Now Layer the localities on top
+mp <- mp+ 
+  geom_point(data=mod.coords,aes(x=LongBin,y=LatBin), size=1.5,alpha=.5,pch=16,colour="deepskyblue") + 
+  coord_equal() +
+  theme_bw() + 
+  xlab("Longitude") + 
+  ylab("Latitude") + 
+  theme(panel.background = element_blank()) +
+  theme(panel.grid.major = element_blank()) +
+  theme(panel.grid.minor = element_blank()) 
+ggdraw(mp)
+dev.off()
+
+# plot locations of fossil samples
+pdf("Fig.S1.pdf",8,4)
+mp2 <- NULL
+mapWorld <- borders("world", colour="gray43", fill="gray43") # create a layer of borders
+mp2 <- ggplot() +  mapWorld
+
+# Now Layer the localities on top
+mp2 <- mp2+ 
+  geom_point(data=foss.coords,aes(x=LongBin,y=LatBin,colour=interval), size=1.5,alpha=.5,pch=16) +
+  coord_equal() + 
+  theme_bw() + 
+  xlab("Longitude") +
+  ylab("Latitude") + 
+  theme(panel.background = element_blank()) + 
+  theme(panel.grid.major = element_blank()) + 
+  theme(panel.grid.minor = element_blank())  +
+  theme(legend.position="none") + 
+  scale_colour_manual(values=c("red","gold"))
+ggdraw(mp2)
+dev.off()
+```
+###Calculating pairwise dissimilarities and making figure 3
+Calculate collection dissimilarities versus distance between collections for modern datasets, collection dissimilarities for fossil datasets:  
+```{r}
+dist.decay2 <- function(df){
+  df <- Alldata.dist[(Alldata.dist$dataset.dist == "Denmark_IMIS:dasid:4494 1975 10 Sand Low energy"),]
+  taxa <- subset(df, select=-c(dataset.dist,dataset.par,region,min_ma,formation,facies,environment,Col.Sample.Size,Col.Sample.Richness,n.ind,n.tax,n.col,collection_no,LatBin,LongBin,decimalLatitude,decimalLongitude,depth.slice,maxdepth,mindepth,depthrange,variable,interval,setting,sample.year))
+  taxa <- taxa[,colSums(taxa) > 0]
+  horn <- data.frame(as.vector(vegdist(taxa, method="horn", binary=FALSE, diag=FALSE, upper=FALSE,na.rm = TRUE)))
+  morisita <- data.frame(as.vector(vegdist(taxa, method="morisita", binary=FALSE, diag=FALSE, upper=FALSE,na.rm = TRUE)))
+  bray <- data.frame(as.vector(vegdist(taxa, method="bray", binary=FALSE, diag=FALSE, upper=FALSE,na.rm = TRUE)))
+  jaccard <- data.frame(as.vector(vegdist(taxa, method="jaccard", binary=TRUE, diag=FALSE, upper=FALSE,na.rm = TRUE)))
+  chao <- data.frame(as.vector(vegdist(taxa, method="chao", binary=FALSE, diag=FALSE, upper=FALSE,na.rm = TRUE)))
+  #chao <- data.frame(as.vector(dis.chao(taxa, index="jaccard", version="prob")))
+  dats <- data.frame(bray,horn,morisita,jaccard,chao)
+  colnames(dats) <- c("bray","horn","morisita","jaccard","chao")
+  
+  ### extract geographic distances
+  lats <- data.frame(df$decimalLongitude,df$decimalLatitude)
+  dists <- earth.dist(lats, dist = TRUE)
+  geog.dist <- data.frame(as.vector(dists))
+  colnames(geog.dist) <- c("geog.dist")
+  
+  ### extract time differences
+  years <- subset(df, select=c(sample.year))
+  max.year <- function(x, y) max(x,y)
+  min.year <- function(x, y) min(x,y)
+  early.year <- data.frame(as.vector(proxy::dist(years, method = min.year)))
+  colnames(early.year) <- c("early.year")
+  late.year <- data.frame(as.vector(proxy::dist(years, method = max.year)))
+  colnames(late.year) <- c("late.year")
+  time.dist <- data.frame(as.vector(dist(years, method = "euclidean", diag = FALSE, upper = FALSE, p = 2)))
+  colnames(time.dist) <- c("time.dist")
+  
+  outs <- data.frame(dats,early.year,late.year,geog.dist,time.dist)
+  return(outs)
+}
+distance.decay <- ddply(Alldata.dist,.(interval,dataset.dist),each(dist.decay2),.progress="text")
+```
+Bin geographic and time distances:  
+```{r}
+distance.decay$dist.bin <-  round(log2(distance.decay$geog.dist),0)
+distance.decay$dist.bin <-  ifelse(distance.decay$dist.bin <= -6, -6, distance.decay$dist.bin)
+distance.decay$time.bin <-  round(log2(distance.decay$time.dist),0)
+distance.decay$dist.bin[!is.finite(distance.decay$dist.bin)] <- -6
+distance.decay$time.bin[!is.finite(distance.decay$time.bin)] <- -5
+```
+Select range of time distances to include:  
+```{r}
+distance.decay2 <- distance.decay[(distance.decay$time.dist <= 5),]
+```
+Calculate median bray value for every distance bin/dataset combination:  
+```{r}
+med.bray <- function(df) median(df$bray)
+data.bin.meds <- ddply(distance.decay2,.(interval,dataset.dist,dist.bin),each(med.bray))
+n.datasets <- function(df) nrow(df)
+datasets <- ddply(data.bin.meds,.(dist.bin),each(n.datasets))
+data.bin.meds <- merge(data.bin.meds,datasets)
+```
+Make plot of distance versus Bray-Curtis dissimilarity in modern datasets, compare to distributions of fossil datasets (Fig. 3):  
+```{r}
+mod.bin.meds <- data.bin.meds[(data.bin.meds$interval == "Modern"),]
+p1 <- ggplot(mod.bin.meds,aes(dist.bin,med.bray,group=dist.bin,fill=n.datasets)) +
+  geom_boxplot(outlier.colour=NA,size=.25) + 
+  theme_bw() + 
+  coord_cartesian(ylim = c(.045,.955),xlim=c(-6,11)) + 
+  xlab(expression(paste("Log"[2]," distance between samples (km)"))) +
+  ylab("Median Bray-Curtis dissimilarity") + 
+  theme(panel.grid.major = element_blank()) + 
+  theme(panel.grid.minor = element_blank()) + 
+  scale_fill_gradient(low="white",high="deepskyblue",name="Number of\nDatasets") +
+  theme(axis.text=element_text(size=14),axis.title=element_text(size=16))+
+  theme(legend.justification=c(1.12,3.3), legend.position=c(.9,.9)) +
+  theme(legend.text = element_text(size = 14)) + 
+  theme(panel.background = element_rect(fill = NA, color = "black", size = .75)) 
+
+fos.bin.meds <- na.omit(data.bin.meds[(data.bin.meds$interval != "Modern"),])
+fos.bin.meds$interval <- factor(fos.bin.meds$interval , levels = c("Phanerozoic","Ediacaran"))
+p2 <- ggplot(fos.bin.meds,aes(interval,med.bray,group=as.factor(interval),fill=interval)) +
+  geom_boxplot(outlier.colour=NA,size=.25) + 
+  theme_bw() + 
+  coord_cartesian(ylim = c(.045,.955)) +
+  xlab("") +
+  ylab("") +
+  theme(panel.grid.major = element_blank()) +
+  theme(panel.grid.minor = element_blank()) + 
+  scale_fill_manual(values = c("gold","red"),name="Interval")  +
+  theme(legend.position=c(.65,.15)) +
+  theme(legend.background = element_blank()) +
+  theme(panel.background = element_rect(fill = NA, color = "black", size = .75)) +
+  theme(axis.text=element_text(size=12)) + 
+  theme(axis.text.y = element_blank()) +
+  theme(axis.text.x = element_blank())
+figure2 <- ggarrange(p1,p2,
+                    ncol = 2, nrow = 1,common.legend = FALSE, align = "h",widths = c(1,.4))
+ggexport(figure2, filename = "Fig.3.pdf")
+dev.off()
+```
+
+#Supplemental Figures
+
+![](Fig.S1.pdf)
+Figure S1: locations of fossil datasets included in analyses.  Gold points are Phanerozoic datasets, red points are Ediacaran datasets.\pagebreak
+
+![](Fig.S2.pdf)
+Figure S2: locations of modern datasets included in analyses.\pagebreak
+
+![](Fig.S3.pdf)
+Figure S3: Excess beta diversity versus log number of collections in each dataset. Confidence intervals and marginal frequency distributions as in Figure 1.\pagebreak
+
+![](Fig.S4.pdf)
+Figure S4: Excess beta diversity versus log number of individuals in each dataset. Confidence intervals and marginal frequency distributions as in Figure 1.\pagebreak
+
+![](Fig.S5.pdf)
+Figure S5: Excess beta diversity versus log number of genera in each dataset. Confidence intervals and marginal frequency distributions as in Figure 1.\pagebreak
+
+![](Fig.S6.pdf)
+Figure S6: Excess beta diversity of datasets versus mean Bray-Curtis dissilarity from the dataset centroid. Confidence intervals and marginal frequency distributions as in Figure 1.\pagebreak
+
+![](Fig.S7.pdf)
+Figure S7: Mean alpha versus excess beta diversity for all fossil datasets broken out by broad depth zone. Confidence intervals and marginal frequency distributions as in Figure 1.\pagebreak
+
+![](Fig.S8.pdf)
+Figure S8: Excess beta diversity of datasets versus mean Bray-Curtis dissilarity from the dataset centroid, with the two Cambrian lagerstätte highlighted. Confidence intervals and marginal frequency distributions as in Figure 1\pagebreak
